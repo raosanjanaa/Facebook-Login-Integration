@@ -218,14 +218,21 @@ t.classList.add("show");
 setTimeout(()=>t.classList.remove("show"),3000);
 }
 
-function handleFBLogin(){
-FB.login(res=>{
-if(res.authResponse){
-fetchData();
-}else{
-showToast("Login cancelled");
-}
-},{scope:"public_profile,email"});
+function handleFBLogin() {
+  if (typeof FB === "undefined") {
+    showToast("Facebook SDK not loaded yet");
+    return;
+  }
+
+  FB.login(function(res) {
+    if (res.authResponse) {
+      fetchData();
+    } else {
+      showToast("Login cancelled or not authorized");
+    }
+  }, {
+    scope: "public_profile,email"
+  });
 }
 
 function fetchData(){
@@ -245,13 +252,23 @@ FB.logout(()=>showScreen("loginScreen"));
 }
 
 /* SAFE INIT */
-window.fbAsyncInit=function(){
-FB.init({
-appId:FB_APP_ID,
-cookie:true,
-xfbml:true,
-version:"v19.0"
-});
+window.fbAsyncInit = function () {
+  FB.init({
+    appId: FB_APP_ID,
+    cookie: true,
+    xfbml: true,
+    version: "v19.0"
+  });
+
+  FB.getLoginStatus(function (response) {
+    console.log("Login status:", response);
+  });
+
+  // hide splash safely
+  setTimeout(() => {
+    document.getElementById("splashScreen").style.display = "none";
+  }, 1500);
+};
 
 FB.getLoginStatus(()=>{});
 
