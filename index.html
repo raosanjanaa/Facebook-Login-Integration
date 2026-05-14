@@ -538,7 +538,8 @@
   // ════════════════════════════════════════════════
   //  ★  REPLACE THIS WITH YOUR REAL APP ID  ★
   // ════════════════════════════════════════════════
-  const FB_APP_ID = 'YOUR_APP_ID';
+  const FB_APP_ID = '962740976398168';
+  
   // ════════════════════════════════════════════════
 
   const SCOPES = 'public_profile,email';
@@ -646,7 +647,7 @@
 
   /* ─── Login handler ─── */
   function handleFBLogin() {
-  if (FB_APP_ID === '962740976398168') {
+  if (FB_APP_ID === 'YOUR_APP_ID') {
     showError('Please replace YOUR_APP_ID with your real Facebook App ID.');
     return;
   }
@@ -664,6 +665,7 @@
     auth_type: 'rerequest'
   });
 }
+
 
 
   /* ─── Logout handler ─── */
