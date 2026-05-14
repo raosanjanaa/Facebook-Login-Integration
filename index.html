@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nexus — Facebook Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #12121a;
+      --card:      #1a1a26;
+      --border:    rgba(255,255,255,0.07);
+      --fb:        #1877F2;
+      --fb-hover:  #0e65d9;
+      --accent:    #6c63ff;
+      --accent2:   #ff6584;
+      --text:      #f0f0f8;
+      --muted:     #7a7a9a;
+      --success:   #4ade80;
+      --radius:    20px;
+      --radius-sm: 12px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.5;
+    }
+
+    /* ── MESH BLOBS ── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 18s ease-in-out infinite;
+    }
+    .blob-1 { width: 600px; height: 600px; background: rgba(108,99,255,0.13); top: -200px; left: -150px; animation-delay: 0s; }
+    .blob-2 { width: 500px; height: 500px; background: rgba(255,101,132,0.09); bottom: -180px; right: -120px; animation-delay: -7s; }
+    .blob-3 { width: 350px; height: 350px; background: rgba(24,119,242,0.1); top: 40%; left: 50%; transform: translate(-50%,-50%); animation-delay: -13s; }
+    @keyframes drift {
+      0%, 100% { transform: translate(0,0) scale(1); }
+      33%       { transform: translate(40px,-30px) scale(1.05); }
+      66%       { transform: translate(-30px, 40px) scale(0.97); }
+    }
+
+    /* ── LAYOUT ── */
+    #app {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; width: 100%; max-width: 440px; }
+    .screen.active { display: block; animation: fadeUp 0.55s cubic-bezier(0.16,1,0.3,1) both; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 48px 40px;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      position: relative; overflow: hidden;
+    }
+    .card::after {
+      content: '';
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(108,99,255,0.6), transparent);
+    }
+
+    /* ── LOGIN SCREEN ── */
+    .login-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 28px;
+      box-shadow: 0 12px 40px rgba(108,99,255,0.35);
+      font-size: 28px;
+    }
+    .login-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem; font-weight: 800;
+      text-align: center;
+      background: linear-gradient(135deg, #fff 40%, var(--muted));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .login-subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 40px;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      display: flex; align-items: center; gap: 16px;
+      margin: 28px 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+    .divider span { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; }
+
+    /* ── FACEBOOK BUTTON ── */
+    .btn-facebook {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 16px 24px;
+      background: var(--fb);
+      color: #fff;
+      border: none; border-radius: var(--radius-sm);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem; font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 8px 24px rgba(24,119,242,0.3);
+      position: relative; overflow: hidden;
+    }
+    .btn-facebook::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0);
+      transition: background 0.2s;
+    }
+    .btn-facebook:hover { background: var(--fb-hover); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(24,119,242,0.4); }
+    .btn-facebook:hover::before { background: rgba(255,255,255,0.04); }
+    .btn-facebook:active { transform: translateY(0); }
+    .btn-facebook:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook svg { flex-shrink: 0; }
+    .btn-facebook .btn-text { flex: 1; text-align: center; }
+
+    /* ── FEATURES LIST ── */
+    .features {
+      list-style: none;
+      display: flex; flex-direction: column; gap: 12px;
+      margin-bottom: 0;
+    }
+    .features li {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 0.875rem; color: var(--muted);
+    }
+    .features li .icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+
+    /* ── PRIVACY NOTE ── */
+    .privacy-note {
+      text-align: center;
+      font-size: 0.75rem; color: var(--muted);
+      margin-top: 24px;
+      line-height: 1.6;
+    }
+    .privacy-note a { color: var(--accent); text-decoration: none; }
+
+    /* ── LOADING STATE ── */
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 20px;
+    }
+    .loading-overlay.active { display: flex; }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(108,99,255,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--muted); font-size: 0.9rem; }
+
+    /* ── ERROR TOAST ── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #2d1a1a; border: 1px solid rgba(255,100,100,0.25);
+      color: #ff8080; border-radius: var(--radius-sm);
+      padding: 12px 20px; font-size: 0.875rem;
+      display: flex; align-items: center; gap: 10px;
+      z-index: 200; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+      max-width: calc(100vw - 48px);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ═══════════════════════════════════════
+       PROFILE SCREEN
+    ═══════════════════════════════════════ */
+    .profile-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .avatar-wrap {
+      position: relative; display: inline-block; margin-bottom: 16px;
+    }
+    .avatar-img {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      border: 3px solid transparent;
+      background: linear-gradient(var(--card), var(--card)) padding-box,
+                  linear-gradient(135deg, var(--accent), var(--accent2)) border-box;
+      box-shadow: 0 12px 40px rgba(108,99,255,0.3);
+    }
+    .avatar-badge {
+      position: absolute; bottom: 4px; right: 4px;
+      width: 24px; height: 24px;
+      background: var(--success);
+      border-radius: 50%;
+      border: 2px solid var(--card);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .avatar-badge svg { width: 12px; height: 12px; fill: #0a0a0f; }
+
+    .profile-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.5rem; font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .profile-tag {
+      font-size: 0.8rem; color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+    .connected-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(74,222,128,0.1);
+      border: 1px solid rgba(74,222,128,0.2);
+      color: var(--success);
+      font-size: 0.75rem; font-weight: 500;
+      padding: 4px 12px; border-radius: 100px;
+      margin-top: 10px;
+    }
+    .connected-badge::before {
+      content: ''; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--success);
+      animation: pulse-dot 2s ease infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ── PROFILE FIELDS ── */
+    .fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .field {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      transition: border-color 0.2s;
+    }
+    .field:hover { border-color: rgba(108,99,255,0.3); }
+    .field.full { grid-column: 1 / -1; }
+    .field-label {
+      font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 5px;
+    }
+    .field-value {
+      font-size: 0.9rem; font-weight: 500; color: var(--text);
+      word-break: break-all; line-height: 1.4;
+    }
+    .field-value.monospace {
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem; color: var(--accent);
+    }
+    .field-value.na { color: var(--muted); font-style: italic; font-weight: 400; }
+
+    /* ── PERMISSIONS ── */
+    .permissions {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 24px;
+    }
+    .perm-tag {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(108,99,255,0.1);
+      border: 1px solid rgba(108,99,255,0.2);
+      color: #a8a4ff; font-size: 0.75rem;
+      padding: 5px 12px; border-radius: 100px;
+    }
+    .perm-tag svg { width: 10px; height: 10px; fill: currentColor; }
+
+    /* ── LOGOUT BUTTON ── */
+    .btn-logout {
+      width: 100%; padding: 14px 24px;
+      background: transparent;
+      border: 1px solid rgba(255,100,100,0.25);
+      border-radius: var(--radius-sm);
+      color: #ff8080;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem; font-weight: 500;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    }
+    .btn-logout:hover {
+      background: rgba(255,100,100,0.08);
+      border-color: rgba(255,100,100,0.5);
+      transform: translateY(-1px);
+    }
+    .btn-logout:active { transform: translateY(0); }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 480px) {
+      .card { padding: 32px 24px; }
+      .fields-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: 1; }
+    }
+
+    /* ── SETUP BANNER (shown when using test App ID) ── */
+    .setup-banner {
+      background: rgba(255,165,0,0.08);
+      border: 1px solid rgba(255,165,0,0.2);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      font-size: 0.8rem; color: #ffb347;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .setup-banner.visible { display: block; }
+    .setup-banner strong { font-weight: 600; }
+    .setup-banner code {
+      background: rgba(255,179,71,0.15); padding: 1px 6px;
+      border-radius: 4px; font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Ambient blobs -->
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Connecting to Facebook…</div>
+</div>
+
+<!-- Error toast -->
+<div class="toast" id="errorToast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  <span id="errorMsg">An error occurred.</span>
+</div>
+
+<div id="app">
+
+  <!-- ╔═══════════════════════════╗ -->
+  <!-- ║       LOGIN SCREEN        ║ -->
+  <!-- ╚═══════════════════════════╝ -->
+  <div class="screen active" id="loginScreen">
+    <div class="card">
+
+      <!-- Setup warning (hidden until JS replaces APP_ID) -->
+      <div class="setup-banner" id="setupBanner">
+        ⚠️ <strong>Replace your App ID!</strong> Open <code>index.html</code> and set
+        <code>YOUR_APP_ID</code> to your real Facebook App ID. See the guide below.
+      </div>
+
+      <!-- Logo -->
+      <div class="login-logo">✦</div>
+
+      <h1 class="login-title">Welcome to Nexus</h1>
+      <p class="login-subtitle">
+        A beautifully crafted space.<br>Sign in with Facebook to get started.
+      </p>
+
+      <!-- Facebook Login Button -->
+      <button class="btn-facebook" id="fbLoginBtn" onclick="handleFBLogin()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+        <span class="btn-text">Continue with Facebook</span>
+      </button>
+
+      <div class="divider"><span>What you get</span></div>
+
+      <ul class="features">
+        <li>
+          <div class="icon">👤</div>
+          <span>Your full name & profile picture</span>
+        </li>
+        <li>
+          <div class="icon">✉️</div>
+          <span>Email address (if granted)</span>
+        </li>
+        <li>
+          <div class="icon">🔑</div>
+          <span>Secure Facebook OAuth 2.0 login</span>
+        </li>
+        <li>
+          <div class="icon">💾</div>
+          <span>Session persisted across reloads</span>
+        </li>
+      </ul>
+
+      <p class="privacy-note">
+        By continuing, you agree to our <a href="#">Terms of Service</a> and
+        <a href="#">Privacy Policy</a>. We never post on your behalf.
+      </p>
+    </div>
+  </div>
+
+  <!-- ╔═══════════════════════════╗ -->
+  <!-- ║      PROFILE SCREEN       ║ -->
+  <!-- ╚═══════════════════════════╝ -->
+  <div class="screen" id="profileScreen">
+    <div class="card">
+
+      <!-- Avatar & name -->
+      <div class="profile-header">
+        <div class="avatar-wrap">
+          <img class="avatar-img" id="profilePic" src="" alt="Profile picture" />
+          <div class="avatar-badge">
+            <svg viewBox="0 0 12 12"><path d="M10 3L5 9L2 6" stroke="#0a0a0f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          </div>
+        </div>
+        <div class="profile-name" id="profileName">—</div>
+        <div class="profile-tag">Facebook Member</div>
+        <div class="connected-badge">Connected</div>
+      </div>
+
+      <!-- Profile Fields -->
+      <div class="section-label">Profile Data</div>
+      <div class="fields-grid">
+        <div class="field full">
+          <div class="field-label">Full Name</div>
+          <div class="field-value" id="fieldName">—</div>
+        </div>
+        <div class="field">
+          <div class="field-label">First Name</div>
+          <div class="field-value" id="fieldFirst">—</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Last Name</div>
+          <div class="field-value" id="fieldLast">—</div>
+        </div>
+        <div class="field full">
+          <div class="field-label">Email Address</div>
+          <div class="field-value" id="fieldEmail">—</div>
+        </div>
+        <div class="field full">
+          <div class="field-label">Facebook User ID</div>
+          <div class="field-value monospace" id="fieldId">—</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Gender</div>
+          <div class="field-value" id="fieldGender">—</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Birthday</div>
+          <div class="field-value" id="fieldBirthday">—</div>
+        </div>
+        <div class="field full">
+          <div class="field-label">Location</div>
+          <div class="field-value" id="fieldLocation">—</div>
+        </div>
+      </div>
+
+      <!-- Granted Permissions -->
+      <div class="section-label">Granted Permissions</div>
+      <div class="permissions" id="permissionsWrap">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Logout -->
+      <button class="btn-logout" onclick="handleLogout()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Sign out of Nexus
+      </button>
+
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+
+<!-- ─────────────────────────────────────────
+     FACEBOOK SDK  (async, non-blocking)
+───────────────────────────────────────── -->
+<div id="fb-root"></div>
+<script>
+  // ════════════════════════════════════════════════
+  //  ★  REPLACE THIS WITH YOUR REAL APP ID  ★
+  // ════════════════════════════════════════════════
+  const FB_APP_ID = 'YOUR_APP_ID';
+  // ════════════════════════════════════════════════
+
+  const SCOPES = 'public_profile,email';
+
+  // Show setup banner if placeholder is still present
+  if (FB_APP_ID === 'YOUR_APP_ID') {
+    document.getElementById('setupBanner').classList.add('visible');
+  }
+
+  /* ─── Helpers ─── */
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    el.classList.add('active');
+    // Re-trigger animation
+    el.style.animation = 'none';
+    el.offsetHeight; // reflow
+    el.style.animation = '';
+  }
+  function showLoading(msg = 'Connecting to Facebook…') {
+    document.getElementById('loadingText').textContent = msg;
+    document.getElementById('loadingOverlay').classList.add('active');
+  }
+  function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('active');
+  }
+  function showError(msg) {
+    const toast = document.getElementById('errorToast');
+    document.getElementById('errorMsg').textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+  function setText(id, val, fallback = 'Not provided') {
+    const el = document.getElementById(id);
+    if (val) {
+      el.textContent = val;
+      el.classList.remove('na');
+    } else {
+      el.textContent = fallback;
+      el.classList.add('na');
+    }
+  }
+
+  /* ─── Populate profile UI ─── */
+  function populateProfile(data) {
+    // Picture
+    const pic = data.picture?.data?.url || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=6c63ff&color=fff&size=200`;
+    document.getElementById('profilePic').src = pic;
+    document.getElementById('profileName').textContent = data.name || 'Facebook User';
+
+    setText('fieldName',     data.name);
+    setText('fieldFirst',    data.first_name);
+    setText('fieldLast',     data.last_name);
+    setText('fieldEmail',    data.email);
+    setText('fieldId',       data.id);
+    setText('fieldGender',   data.gender ? data.gender.charAt(0).toUpperCase() + data.gender.slice(1) : null);
+    setText('fieldBirthday', data.birthday);
+    setText('fieldLocation', data.location?.name);
+  }
+
+  /* ─── Populate permissions ─── */
+  function populatePermissions(perms) {
+    const wrap = document.getElementById('permissionsWrap');
+    wrap.innerHTML = '';
+    const granted = perms?.filter(p => p.status === 'granted') || [];
+    if (!granted.length) {
+      wrap.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">No permissions fetched.</span>';
+      return;
+    }
+    granted.forEach(p => {
+      wrap.innerHTML += `<span class="perm-tag">
+        <svg viewBox="0 0 10 10"><path d="M8 2.5L4 7L2 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        ${p.permission}
+      </span>`;
+    });
+  }
+
+  /* ─── Fetch user data from Graph API ─── */
+  function fetchUserData() {
+    showLoading('Fetching your profile…');
+    FB.api(
+      '/me',
+      { fields: 'id,name,first_name,last_name,email,picture.width(200).height(200),gender,birthday,location' },
+      function(resp) {
+        if (resp.error) {
+          hideLoading();
+          showError(resp.error.message || 'Failed to fetch profile data.');
+          return;
+        }
+        populateProfile(resp);
+
+        // Also fetch granted permissions
+        FB.api('/me/permissions', function(permResp) {
+          hideLoading();
+          populatePermissions(permResp?.data);
+
+          // Persist session
+          localStorage.setItem('fb_user', JSON.stringify(resp));
+
+          showScreen('profileScreen');
+        });
+      }
+    );
+  }
+
+  /* ─── Login handler ─── */
+  function handleFBLogin() {
+  if (FB_APP_ID === 'YOUR_APP_ID') {
+    showError('Please replace YOUR_APP_ID with your real Facebook App ID.');
+    return;
+  }
+
+  FB.login(function(response) {
+    console.log(response);
+
+    if (response.authResponse) {
+      fetchUserData();
+    } else {
+      showError('Facebook login cancelled or failed.');
+    }
+  }, {
+    scope: 'public_profile,email',
+    auth_type: 'rerequest'
+  });
+}
+
+
+  /* ─── Logout handler ─── */
+  function handleLogout() {
+    showLoading('Signing out…');
+    FB.logout(function() {
+      localStorage.removeItem('fb_user');
+      hideLoading();
+      showScreen('loginScreen');
+    });
+  }
+
+  /* ─── Facebook SDK init ─── */
+  window.fbAsyncInit = function() {
+    FB.init({
+  appId            : FB_APP_ID,
+  cookie           : true,
+  xfbml            : true,
+  version          : 'v19.0',
+  status           : true,
+  oauth            : true
+});
+
+    // Check existing login state (persistent session)
+    FB.getLoginStatus(function(response) {
+      if (response.status === 'connected') {
+        // Already logged in — check local cache first for instant load
+        const cached = localStorage.getItem('fb_user');
+        if (cached) {
+          try {
+            populateProfile(JSON.parse(cached));
+            // Then refresh in background
+            FB.api('/me/permissions', function(permResp) {
+              populatePermissions(permResp?.data);
+            });
+            showScreen('profileScreen');
+            // Silently refresh full profile
+            fetchUserData();
+            return;
+          } catch(e) { /* fall through */ }
+        }
+        fetchUserData();
+      }
+      // else: stay on login screen
+    });
+  };
+
+  // Load the SDK asynchronously
+  (function(d, s, id) {
+    var js, fjs = d.getElementsByTagName(s)[0];
+    if (d.getElementById(id)) return;
+    js = d.createElement(s); js.id = id;
+    js.src = "https://connect.facebook.net/en_US/sdk.js";
+    fjs.parentNode.insertBefore(js, fjs);
+  }(document, 'script', 'facebook-jssdk'));
+</script>
+</body>
+</html>
