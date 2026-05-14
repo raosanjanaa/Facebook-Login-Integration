@@ -542,7 +542,8 @@
 
   // ════════════════════════════════════════════════
 
-  const SCOPES = 'public_profile,email';
+  const SCOPES = 'public_profile';
+
 
   // Show setup banner if placeholder is still present
   if (FB_APP_ID === 'YOUR_APP_ID') {
@@ -656,7 +657,7 @@
       showError('Facebook login cancelled or failed.');
     }
   }, {
-    scope: 'public_profile,email',
+    scope: 'public_profile',
     auth_type: 'rerequest'
   });
 }
